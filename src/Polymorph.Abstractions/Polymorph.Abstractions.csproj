@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Polymorph.Abstractions</PackageId>
+    <Description>Public contracts and analyzer for Polymorph. Reference this from domain and application layer projects that consume the mapper interface without taking a dependency on the full implementation.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Polymorph.Analyzer\Polymorph.Analyzer.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+    <ProjectReference Include="..\Polymorph.Analyzer.CodeFixes\Polymorph.Analyzer.CodeFixes.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="[6.0.0, )" />
+  </ItemGroup>
+
+  <Target Name="_AddAnalyzersToOutput" BeforeTargets="_GetPackageFiles">
+    <MSBuild Projects="..\Polymorph.Analyzer\Polymorph.Analyzer.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_AnalyzerAssembly" />
+    </MSBuild>
+    <MSBuild Projects="..\Polymorph.Analyzer.CodeFixes\Polymorph.Analyzer.CodeFixes.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_AnalyzerAssembly" />
+    </MSBuild>
+    <ItemGroup>
+      <None Include="@(_AnalyzerAssembly)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    </ItemGroup>
+  </Target>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Polymorph, PublicKey=$(PolymorphPublicKey)" />
+    <InternalsVisibleTo Include="Polymorph.Analyzer, PublicKey=$(PolymorphPublicKey)" />
+    <InternalsVisibleTo Include="Polymorph.Tests, PublicKey=$(PolymorphPublicKey)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

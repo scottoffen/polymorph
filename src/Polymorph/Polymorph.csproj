@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Polymorph</PackageId>
+    <Description>Convention-based object-to-object mapping for .NET with Native AOT support.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Polymorph.Abstractions\Polymorph.Abstractions.csproj" />
+    <ProjectReference Include="..\Polymorph.Generator\Polymorph.Generator.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="[6.0.0, )" />
+  </ItemGroup>
+
+  <Target Name="_AddAnalyzersToOutput" BeforeTargets="_GetPackageFiles">
+    <MSBuild Projects="..\Polymorph.Generator\Polymorph.Generator.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_AnalyzerAssembly" />
+    </MSBuild>
+    <ItemGroup>
+      <None Include="@(_AnalyzerAssembly)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    </ItemGroup>
+  </Target>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Polymorph.Tests, PublicKey=$(PolymorphPublicKey)" />
+    <InternalsVisibleTo Include="Polymorph.Benchmarks, PublicKey=$(PolymorphPublicKey)" />
+    <InternalsVisibleTo Include="Polymorph.Generator, PublicKey=$(PolymorphPublicKey)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

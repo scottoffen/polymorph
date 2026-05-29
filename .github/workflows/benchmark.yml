@@ -1,0 +1,127 @@
+# Runs BenchmarkDotNet against the Polymorph.Benchmarks project and uploads
+# the results as a workflow artifact.
+#
+# This workflow is intentionally simple: manually triggered, no history, no
+# automatic comparisons. Use it for occasional checks ("did this change make
+# things faster or slower?"). For trend tracking you would need a different
+# shape (commit results to a branch, generate charts, etc).
+#
+# Results are produced by BenchmarkDotNet itself in its standard
+# BenchmarkDotNet.Artifacts/results/ directory. The whole directory is
+# uploaded so all output formats (md, html, csv, json) are available.
+#
+# Runner choice: ubuntu-latest. GitHub-hosted runners are shared VMs, so
+# benchmark numbers carry some noise from neighboring workloads on the
+# physical host. Treat absolute numbers as directional rather than precise.
+# Relative comparisons within a single workflow run are more reliable than
+# comparisons across separate runs.
+name: Benchmarks
+
+on:
+  workflow_dispatch:
+    inputs:
+      filter:
+        description: 'BenchmarkDotNet --filter glob (default * runs everything)'
+        required: false
+        type: string
+        default: '*'
+      artifact_name:
+        description: 'Optional label for the uploaded artifact (default uses run number)'
+        required: false
+        type: string
+        default: ''
+
+# One benchmark run at a time. Concurrent runs on shared infrastructure
+# would compete for resources and produce noisier results.
+concurrency:
+  group: benchmarks
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    name: Run Benchmarks
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # NBGV needs full history to compute the version embedded in the
+          # build, even though the version doesn't matter for benchmark
+          # results themselves. Keeping the checkout consistent with the
+          # other workflows avoids one source of "works locally, fails in CI"
+          # confusion.
+          fetch-depth: 0
+
+      - name: Setup .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Display installed SDKs
+        run: dotnet --list-sdks
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('src/**/*.csproj', 'src/Directory.Build.props') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      # Restore for the benchmarks project specifically. Restoring the whole
+      # solution would also restore tests etc; we don't need those here.
+      - name: Restore dependencies
+        run: dotnet restore src/Polymorph.Benchmarks
+
+      # Run BenchmarkDotNet via `dotnet run -c Release`. Arguments after the
+      # `--` are passed through to the application (BenchmarkSwitcher), not
+      # to dotnet. The --filter argument is what BDN uses to select which
+      # benchmarks to execute; * runs everything.
+      #
+      # BenchmarkDotNet refuses to run when launched in Debug configuration
+      # because the results would be misleading. Release is required.
+      - name: Run benchmarks
+        env:
+          BDN_FILTER: ${{ github.event.inputs.filter }}
+        run: |
+          echo "Running benchmarks with filter: $BDN_FILTER"
+          dotnet run \
+            --project src/Polymorph.Benchmarks \
+            --configuration Release \
+            --no-restore \
+            -- --filter "$BDN_FILTER"
+
+      # Compute the artifact name. If the operator supplied one, use it
+      # verbatim. Otherwise fall back to a name derived from the run number,
+      # which is monotonic and unique within the repository.
+      - name: Determine artifact name
+        id: artifact
+        env:
+          OVERRIDE: ${{ github.event.inputs.artifact_name }}
+        run: |
+          if [ -n "$OVERRIDE" ]; then
+            echo "name=$OVERRIDE" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=benchmarks-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Upload the entire BenchmarkDotNet results directory. BDN writes its
+      # output to BenchmarkDotNet.Artifacts/ relative to the working
+      # directory at the time it ran. With `dotnet run --project ...`, that
+      # working directory is the project's output directory (bin/Release/
+      # net10.0/), so the artifacts land there.
+      #
+      # if-no-files-found: error makes the workflow fail loudly when no
+      # results were produced (typically because the filter matched nothing
+      # or BDN crashed silently).
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifact.outputs.name }}
+          path: src/Polymorph.Benchmarks/BenchmarkDotNet.Artifacts/results/
+          retention-days: 90
+          if-no-files-found: error

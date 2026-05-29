@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Polymorph.Compatibility.AutoMapper</PackageId>
+    <Description>AutoMapper compatibility shim for Polymorph. Provides AutoMapper-style API surface backed by Polymorph for migration scenarios.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Polymorph\Polymorph.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>
